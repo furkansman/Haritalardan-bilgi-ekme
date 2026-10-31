@@ -15,6 +15,8 @@ function render() {
   $('progress').value=job?.limit ? Math.min(100,100*job.rows.length/job.limit):0;
   $('status').textContent=job?.message||'Yeni bir arama için hazır.';
   $('current').textContent=job?.currentName ? `İnceleniyor: ${job.currentName}`:'';
+  $('queueStatus').hidden=!(job?.deepScan||$('deepScan').checked);
+  $('queueStatus').textContent=job?.deepScan ? `${job.phase==='discover'?'Mahalle keşfi sürüyor':`Taranan Mahalle: ${job.currentArea||'İlçe geneli'} (${job.queueIndex+1}/${job.queue.length})`} • Toplam Benzersiz İşletme: ${job.rows.length}\n${job.queueSource}`:($('deepScan').checked?'Mahalle kuyruğu arama başladığında hazırlanacak.':'');
   $('error').textContent=job?.downloadError||'';
   const rows=filtered();$('download').disabled=!rows.length;
   $('count').textContent=`${rows.length} filtrelenen / ${job?.rows?.length||0} toplam • önizleme ilk 100`;
@@ -31,13 +33,14 @@ $('searchForm').addEventListener('submit',event=>{
   event.preventDefault();action(async()=>{
     if(job?.rows?.length&&!confirm('Yeni arama mevcut listeyi değiştirecek. Devam edilsin mi?'))return;
     $('start').disabled=true;
-    try {await send('start',{category:$('category').value,location:$('location').value,limit:Number($('limit').value)});}
+    try {await send('start',{category:$('category').value,location:$('location').value,limit:Number($('limit').value),deepScan:$('deepScan').checked});}
     finally {job=(await chrome.storage.local.get('job')).job;render();}
   });
 });
 $('stop').onclick=()=>action(async()=>{ $('stop').disabled=true;await send('stop'); });
 $('download').onclick=()=>action(()=>send('export',{filtered:true,filters:{phone:$('phoneFilter').value,website:$('websiteFilter').value}}));
 $('clear').onclick=()=>action(async()=>{if(confirm('Yerel kayıtlar silinsin mi?'))await send('clear');});
+$('deepScan').onchange=render;
 for(const id of ['phoneFilter','websiteFilter'])$(id).onchange=render;
 chrome.storage.onChanged.addListener((changes,area)=>{if(area==='local'&&changes.job){job=changes.job.newValue;render();}});
-(async()=>{job=(await chrome.storage.local.get('job')).job;if(job){$('category').value=job.category;$('location').value=job.location;$('limit').value=job.limit;}render();})();
+(async()=>{job=(await chrome.storage.local.get('job')).job;if(job){$('category').value=job.category;$('location').value=job.location;$('limit').value=job.limit;$('deepScan').checked=Boolean(job.deepScan);}render();})();

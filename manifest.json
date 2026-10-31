@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "minimum_chrome_version": "116",
   "name": "Harita İşletme Toplayıcı",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "description": "Kalıcı yan panelde Maps işletme listeleri ve yerel CSV dışa aktarımı.",
   "permissions": [
     "storage",
