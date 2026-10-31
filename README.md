@@ -1,55 +1,50 @@
-# Harita İşletme Toplayıcı — Chrome Manifest V3
+# Harita İşletme Toplayıcı • Side Panel / MV3
 
-Kullanıcının yerel Chrome tarayıcısında çalışır. Python, bulut sunucusu, Playwright,
-Chromium indirmesi, API anahtarı veya ücretli servis gerekmez.
+Yerel Chrome 116+ üzerinde çalışan lacivert yan panel. Python, sunucu, API anahtarı
+veya sanal tarayıcı gerekmez. Haritaya tıklamak yan paneli kapatmaz; kullanıcı yine
+paneli kapatabilir. Chrome veya Maps sekmesi kapanırsa toplama sürdürülemez.
 
 ## Kurulum
 
-1. Bu depoyu bilgisayarınıza indirin veya klonlayın.
-2. Chrome'da `chrome://extensions` sayfasını açıp **Geliştirici modu**nu etkinleştirin.
-3. **Paketlenmemiş öğe yükle** ile `manifest.json` bulunan klasörü seçin.
-4. Eklenti simgesini açın, sektör ve bölge yazıp toplamayı başlatın.
-5. Açılan Maps sekmesini açık tutun. Toplama sırasında farklı bir arama yapmayın.
-6. Popup'ı tekrar açarak ilerlemeyi görün, filtre uygulayın ve CSV indirin.
+1. Depoyu indirin; `chrome://extensions` → Geliştirici modu → Paketlenmemiş öğe yükle.
+2. `manifest.json` içeren klasörü seçin. Güncellemede eklentiyi yeniden yükleyin ve
+   eski Maps sekmelerini yenileyin. Yeni sidePanel/downloads izinlerini onaylayın.
+3. Eklenti simgesine tıklayın. Sektör, şehir/ilçe ve hedef (1–500) girin.
+4. Arama yeni Maps sekmesinde açılır. Liste ve detaylar yüklenirken yan paneli ve
+   harita sağ üst kartını izleyin. Toplama sırasında Maps içinde başka arama yapmayın.
 
-## İlk sürüm
+## Akış
 
-- Sektör/bölge araması, 1–500 kayıt limiti, sonuç listesini kaydırma ve sırayla detay açma.
-- İsim, telefon, adres, site, puan, yorum sayısı, Maps bağlantısı ve toplama zamanı.
-- Aynı Maps URL'sini tekilleştirme; yerel kayıt, durdurma, veri silme ve önizleme.
-- Telefonu veya sitesi olan/olmayanları önizleme ve dışa aktarmada filtreleme.
-- Türkçe başlık, UTF-8 BOM, noktalı virgül, CSV kaçışları ve formül enjeksiyonu koruması.
-- E-posta tarama, dışa veri gönderme, analitik veya işletme sitelerine erişim yok.
+Görünür sonuçlar tekilleştirilip sırayla okunur; sonra liste kaydırılır. Sayfa ve
+sonuç paneli 90 saniyeye kadar beklenir. İşletme adı, telefon, adres, site, puan,
+yorum metni, Maps bağlantısı ve zaman cihazda saklanır. Sayaçlar: kaydırma,
+toplanan, hedef; ayrıca incelenen işletme canlı gösterilir.
 
-`background.js` yalnız mesajı gönderen Maps sekmesinin kimliğini doğrular.
-`content.js` Maps sekmesinde çalışır; popup kapalıyken devam eder. Chrome/sekme
-kapanınca veya yeniden yüklenince kesintisiz devam garantisi yoktur. Elde edilen
-kayıtlar `chrome.storage.local` içinde kalır. Tek seferde tek arama çalışır.
+Hedefte, liste sonu uyarısında veya dört ardışık dipte/değişmeyen liste kontrolünde
+arama tamamlanır. Liste sonu, Google'ın bu aramada sunduğu sonuçların sonudur;
+bölgedeki tüm gerçek işletmelerin eksiksiz bulunduğu anlamına gelmez. Geç yüklenen
+sonuçlar veya DOM değişiklikleri sonucu etkileyebilir.
 
-## Sınırlar
+Tamamlanma ve **Durdur ve İndir** tüm mevcut kayıtları otomatik CSV olarak indirir.
+CSV: UTF-8 BOM, Türkçe başlık, noktalı virgül, CRLF, formül koruması. Sıfır sonuçta
+başlıklı boş CSV üretilir. Manuel filtreli indirme ayrıca mevcuttur; otomatik indirme
+filtrelerden etkilenmez. İndirme tarayıcı ayarlarına göre konum sorabilir. İndirme
+başlatma hatası panelde gösterilir; elle tekrar indirilebilir. İndirme isteğinin
+başlatılması dosyanın diske başarıyla yazıldığını garanti etmez.
 
-Bu bir ilk sürümdür; gerçek yerel Chrome üzerinde doğrulanmalıdır. Google Maps'in
-DOM seçicileri ve arama sonuçları değişebilir. Sayfadan kaldırılan/sanallaştırılan
-sonuç bağlantılarında toplama açıklayıcı hatayla durur ve mevcut kayıtları korur.
-Daha küçük limit deneyin. Bölgedeki tüm işletmelerin bulunması garanti edilmez.
-Eksik telefon/site alanı boş kalır; adresi olmayan detaylar zaman aşımıyla durur.
-Puan ve yorum sayısı Maps'in gösterdiği yerelleştirilmiş metin olarak aktarılır.
-
-Sabit beklemeler yalnız yükleme ve işlem temposu içindir; bot engeli aşma mekanizması
-değildir. CAPTCHA/izin ekranı algılanırsa durur; algılanamayan ekran zaman aşımına
-gider. Manuel kontrol edip yeni arama başlatın. Harita dışında Google izin
-sayfasına yönlendirme olursa popup'tan **Durdur** ile işi sonlandırın.
+Popup yoktur. Service worker işleri ve tekilleştirilmiş verileri sırayla kaydeder;
+Maps content script'i toplar. Stop sonrası gelen eski sonuç mesajları yok sayılır.
+Panel kapalı olsa da Maps sekmesi açıkken toplama ve otomatik indirme sürer.
+CAPTCHA/izin ekranları aşılmaz; hata halinde mevcut kayıtlar indirilir. Bilinmeyen
+Maps düzenlerinde açıklayıcı hata/zaman aşımı verilir; sonsuz bekleme yapılmaz.
+E-posta taraması veya dış sunucuya veri gönderimi yoktur.
 
 ## Doğrulama
 
-```sh
-node --check popup.js
-node --check content.js
-node --check background.js
-node --test tests/extension.test.cjs
-```
+`node --check sidepanel.js`, `node --check content.js`, `node --check background.js`,
+`node --test tests/extension.test.cjs`.
 
-Yerel kabul kontrolü: 3 işletme limitiyle bir arama yapın; Maps detaylarıyla CSV'yi
-karşılaştırın. Popup'ı kapatıp açın, durdurmayı, telefon/site filtrelerini, Türkçe
-karakterleri ve CSV'nin Excel'de ayrı sütunlara açılmasını kontrol edin. Ağ/izin
-ve sonuçsuz arama durumlarını da deneyin. Bulut ortamında Chrome çalıştırılmadı.
+Yerel kabul: hedef 3 ile alanları Maps'le karşılaştırın; hedeften az sonuçlu arama,
+sonuçsuz arama, yüklenirken durdurma, tararken durdurma, paneli kapatma/açma,
+CSV Türkçe karakterler ve filtreli indirmeyi kontrol edin. Bulutta gerçek Chrome /
+Google Maps uçtan uca doğrulaması yapılmadı; DOM seçicileri değişebilir.
