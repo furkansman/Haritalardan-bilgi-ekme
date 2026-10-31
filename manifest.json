@@ -1,0 +1,28 @@
+{
+  "manifest_version": 3,
+  "name": "Harita İşletme Toplayıcı",
+  "version": "0.1.0",
+  "description": "Google Maps işletme bilgilerini yerel olarak derleyin ve Türkçe CSV indirin.",
+  "permissions": [
+    "storage"
+  ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "İşletme Toplayıcı"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://www.google.com/maps/*",
+        "https://www.google.com.tr/maps/*"
+      ],
+      "js": [
+        "content.js"
+      ],
+      "run_at": "document_idle"
+    }
+  ],
+  "background": {
+    "service_worker": "background.js"
+  }
+}
