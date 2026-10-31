@@ -40,3 +40,39 @@ test('worker stops atomically, exports once, and ignores late rows',async()=>{
   await send({type:'row',jobId:'job-1',row:{key:'three',name:'Klinik'}},{tab:{id:17}});
   assert.equal(state.job.status,'done');assert.equal(downloads.length,2);
 });
+function collectorContext(overrides={}) {
+  let now=0;
+  const context={console,URL,location:{origin:'https://www.google.com'},
+    tidy:value=>(value||'').replace(/\s+/g,' ').trim(),
+    Date:{now:()=>now},sleep:async ms=>{now+=ms;},check(){},blocked:()=>false,
+    heading:()=>null,feedNow:()=>({}),cancelled:false,history:{back(){}},
+    document:{querySelector:()=>null},...overrides};
+  vm.createContext(context);
+  const source=fs.readFileSync('content.js','utf8');
+  vm.runInContext(source.slice(source.indexOf('  function readCard'),source.indexOf('  async function start')),context);
+  return {context,elapsed:()=>now};
+}
+test('details never wait for an absent panel beyond 2.5 seconds and preserve card fields',async()=>{
+  let clicks=0;
+  const {context,elapsed}=collectorContext();
+  const base={name:'Dent Nilüfer',phone:'05531234567',address:'Denizciler Cd.',website:''};
+  const result=await context.extractDetails({name:'Dent Nilüfer'},{focus(){},click(){clicks++;}},false,base);
+  assert.equal(clicks,1);assert.ok(elapsed()<=2500);assert.equal(result.phone,base.phone);
+  assert.equal(result.address,base.address);
+});
+test('detail DOM exception returns partial row and a subsequent business still runs',async()=>{
+  const {context}=collectorContext({heading:()=>{throw new Error('DOM changed');}});
+  for(const name of ['Dent Nilüfer','Sonraki Klinik']) {
+    const result=await context.extractDetails({name},{focus(){},click(){}},false,{name,phone:'05531234567'});
+    assert.equal(result.name,name);assert.equal(result.phone,'05531234567');
+  }
+});
+test('card reader extracts Turkish phone, address, website, rating without detail DOM',()=>{
+  const root={innerText:'Dent Nilüfer\n0553 123 45 67\nDenizciler Cd. No: 10',
+    querySelector(selector){return selector==='.MW4etd'?{textContent:'4,8'}:selector==='.UY7F9'?{textContent:'(125)'}:null;},
+    querySelectorAll(){return [{href:'https://dent.example',getAttribute:()=> 'Web sitesi',textContent:'Web sitesi'}];}};
+  const {context}=collectorContext();
+  const row=context.readCard({getAttribute:()=> 'Dent Nilüfer',closest:()=>root});
+  assert.equal(row.phone,'0553 123 45 67');assert.equal(row.address,'Denizciler Cd. No: 10');
+  assert.equal(row.website,'https://dent.example/');assert.equal(row.rating,'4,8');assert.equal(row.reviews,'(125)');
+});

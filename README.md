@@ -48,3 +48,17 @@ Yerel kabul: hedef 3 ile alanları Maps'le karşılaştırın; hedeften az sonu�
 sonuçsuz arama, yüklenirken durdurma, tararken durdurma, paneli kapatma/açma,
 CSV Türkçe karakterler ve filtreli indirmeyi kontrol edin. Bulutta gerçek Chrome /
 Google Maps uçtan uca doğrulaması yapılmadı; DOM seçicileri değişebilir.
+
+## 0.2.1 — Kart öncelikli tarama
+
+Telefon, adres, web sitesi, puan ve yorum önce sol listedeki işletme kartından
+okunur. Telefon/adres/web sitesi tam ise detay açılmaz. Eksik alanlar için detay
+okuma en fazla 2 saniye sürer; listeye dönüş dahil toplam bütçe 2,5 saniyedir.
+Eksik bilgiler boş bırakılır ve işletme mevcut alanlarıyla hemen kaydedilir.
+Tek bir kartın/detayın DOM hatası diğer işletmelerin işlenmesini durdurmaz.
+İşletme detayındaki eski uzun URL/başlık beklemeleri kaldırılmıştır. Her grup
+sonrasında liste scrollHeight değerine kaydırılır ve kaydırma sayacı artar.
+İlk arama paneli beklemesi hâlâ 90 saniyedir; detay denemesi bu beklemeyi kullanmaz.
+Detay sonrası Maps listeyi geri getirmezse ayrı liste beklemesi 5 saniyede
+anlaşılır hata verir; kayıtlar korunur ve CSV indirilir. CAPTCHA, manuel durdurma
+ve eklenti bağlantı hataları normal durdurma kurallarına tabidir.

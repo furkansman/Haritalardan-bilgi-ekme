@@ -2,11 +2,32 @@
   "manifest_version": 3,
   "minimum_chrome_version": "116",
   "name": "Harita İşletme Toplayıcı",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Kalıcı yan panelde Maps işletme listeleri ve yerel CSV dışa aktarımı.",
-  "permissions": ["storage", "sidePanel", "downloads"],
-  "action": {"default_title": "İşletme Toplayıcı panelini aç"},
-  "side_panel": {"default_path": "sidepanel.html"},
-  "background": {"service_worker": "background.js"},
-  "content_scripts": [{"matches": ["https://www.google.com/maps/*", "https://www.google.com.tr/maps/*"], "js": ["content.js"], "run_at": "document_idle"}]
+  "permissions": [
+    "storage",
+    "sidePanel",
+    "downloads"
+  ],
+  "action": {
+    "default_title": "İşletme Toplayıcı panelini aç"
+  },
+  "side_panel": {
+    "default_path": "sidepanel.html"
+  },
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://www.google.com/maps/*",
+        "https://www.google.com.tr/maps/*"
+      ],
+      "js": [
+        "content.js"
+      ],
+      "run_at": "document_idle"
+    }
+  ]
 }

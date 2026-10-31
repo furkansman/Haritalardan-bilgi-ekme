@@ -32,6 +32,74 @@
   const feedNow=()=>document.querySelector('div[role="feed"]');
   const heading=()=>[...document.querySelectorAll('h1')].find(h=>h.getClientRects().length&&tidy(h.textContent));
   const endText=feed=>/listenin sonuna|sonuçların sonuna|you.ve reached the end|no more results/i.test(feed.innerText);
+  function readCard(link) {
+    const result={name:tidy(link?.getAttribute('aria-label')),phone:'',address:'',website:'',rating:'',reviews:''};
+    try {
+      const root=link?.closest('[role="article"], .Nv2PK')||link?.parentElement;
+      if(!root)return result;
+      const text=root.innerText||root.textContent||'';
+      const phone=root.querySelector('a[href^="tel:"]');
+      result.phone=phone?.getAttribute('href').replace(/^tel:/,'')||
+        (text.match(/(?:\+90[ \-.()]*)?(?:0[ \-.()]*)?5\d{2}[ \-.()]*\d{3}[ \-.()]*\d{2}[ \-.()]*\d{2}(?!\d)/)||
+         text.match(/(?:\+90[ \-.()]*|0[ \-.()]*)[234]\d{2}[ \-.()]*\d{3}[ \-.()]*\d{2}[ \-.()]*\d{2}(?!\d)/)||[])[0]||'';
+      const website=[...root.querySelectorAll('a[href]')].find(a=>
+        /website|web sitesi|siteyi ziyaret/i.test((a.getAttribute('aria-label')||'')+' '+a.textContent));
+      if(website){const u=new URL(website.href,location.origin);if(/^https?:$/.test(u.protocol))result.website=u.href;}
+      result.address=tidy(root.querySelector('[data-item-id="address"], [itemprop="streetAddress"]')?.textContent);
+      if(!result.address){
+        const lines=text.split(/\n|•|·/).map(tidy);
+        result.address=lines.find(line=>/\b(?:cadde|caddesi|sokak|sokağı|mahalle|mahallesi|bulvar|bulvarı)\b|(?:Cd|Sk|Mah|Blv)\./i.test(line))||'';
+      }
+      result.rating=tidy(root.querySelector('.MW4etd')?.textContent)||
+        root.querySelector('[role="img"][aria-label*="yıldız"], [role="img"][aria-label*="stars"]')?.getAttribute('aria-label')||'';
+      result.reviews=tidy(root.querySelector('.UY7F9')?.textContent);
+    } catch(error) { console.debug('Kart kısmen okundu:',error.message); }
+    return result;
+  }
+  async function extractDetails(target,link,single,base) {
+    const result={...base};
+    const deadline=Date.now()+2000;
+    const absoluteDeadline=deadline+500;
+    let clicked=false;
+    try {
+      if(!single){if(!link)return result;link.focus({preventScroll:true});link.click();clicked=true;}
+      while(Date.now()<deadline){
+        check();
+        try {
+          const h=heading();
+          // Never copy the previous business's fields while navigation is pending.
+          if(h&&(!target.name||tidy(h.textContent)===target.name)){
+            result.name=target.name||tidy(h.textContent);
+            const address=document.querySelector('button[data-item-id="address"]');
+            const phone=document.querySelector('button[data-item-id^="phone:tel:"]');
+            const website=document.querySelector('a[data-item-id="authority"]');
+            result.phone=result.phone||phone?.getAttribute('data-item-id').replace(/^phone:tel:/,'')||'';
+            result.address=result.address||tidy(address?.querySelector('.Io6YTe')?.textContent||address?.textContent);
+            result.website=result.website||website?.href||'';
+            result.rating=result.rating||document.querySelector('[role="main"] [role="img"][aria-label*="yıldız"], [role="main"] [role="img"][aria-label*="stars"]')?.getAttribute('aria-label')||'';
+            result.reviews=result.reviews||tidy(document.querySelector('button[jsaction*="moreReviews"]')?.textContent);
+            if(result.phone&&result.address&&result.website)break;
+          }
+        } catch(error) { console.debug('Detay kısmen okundu:',error.message);break; }
+        await sleep(Math.min(100,Math.max(0,deadline-Date.now())));
+      }
+    } catch(error) {
+      if(error.message==='STOP'||blocked())throw error;
+      console.debug('Detay atlandı:',error.message);
+    } finally {
+      // Returning to results shares the same 2.5-second budget; no 30/90s detail waits.
+      if(clicked&&!cancelled){
+        try {
+          if(!feedNow()){
+            const back=document.querySelector('button[aria-label="Geri"],button[aria-label="Back"],button[jsaction*="backToList"]');
+            if(back)back.click();else history.back();
+            while(!feedNow()&&Date.now()<absoluteDeadline&&!cancelled)await sleep(Math.min(50,Math.max(0,absoluteDeadline-Date.now())));
+          }
+        }catch(error){console.debug('Listeye dönüş:',error.message);}
+      }
+    }
+    return result;
+  }
   async function start(){
     if(running)return;
     const {job}=await chrome.storage.local.get('job');
@@ -53,21 +121,21 @@
       }
       let unchanged=0,previousSignature='';
       while(!cancelled){
-        check();const feed=await waitFor(feedNow);
-        const targets=[...feed.querySelectorAll('a[href*="/maps/place/"]')].map(a=>({href:a.href,key:keyFor(a.href),name:tidy(a.getAttribute('aria-label'))}));
+        check();const feed=await waitFor(feedNow,5000);
+        const targets=[...feed.querySelectorAll('a[href*="/maps/place/"]')].map(a=>({href:a.href,key:keyFor(a.href),name:tidy(a.getAttribute('aria-label')),link:a,card:readCard(a)}));
         const unique=[...new Map(targets.map(t=>[t.key,t])).values()];
         for(const target of unique){
           if(seen.has(target.key))continue;
           await collect(target,false);if(cancelled)return;
         }
-        const list=await waitFor(feedNow);
+        const list=await waitFor(feedNow,5000);
         if(endText(list)){await send('complete');return;}
         const signature=unique.map(t=>t.key).join('|')+':'+list.scrollHeight;
         const atBottom=list.scrollTop+list.clientHeight>=list.scrollHeight-8;
         unchanged=signature===previousSignature&&atBottom?unchanged+1:0;
         if(unchanged>=4){await send('complete');return;}
         previousSignature=signature;
-        list.scrollTop=Math.min(list.scrollHeight,list.scrollTop+Math.max(500,list.clientHeight*.85));
+        list.scrollTop=list.scrollHeight;
         scrolls++;await progress('Sonuç listesi kaydırılıyor…');
         await sleep(1800);
         if(document.querySelector('[role="progressbar"], [aria-busy="true"]'))await sleep(1800);
@@ -76,33 +144,19 @@
       if(error.message!=='STOP')await chrome.runtime.sendMessage({type:'error',jobId:job.id,message:error.message}).catch(()=>{});
     }finally{running=false;}
     async function collect(target,single){
-      check();await progress('İşletme detayları yükleniyor…',target.name);
-      const before=heading();
-      if(!single){
-        const link=[...document.querySelectorAll('a[href*="/maps/place/"]')].find(a=>keyFor(a.href)===target.key);
-        if(!link)return;
-        link.click();
-        await waitFor(()=>location.pathname.includes('/maps/place/')&&keyFor(location.href)===target.key);
-        await waitFor(()=>{const h=heading();return h&&(!target.name||tidy(h.textContent)===target.name)&&(h!==before||tidy(h.textContent)===target.name);},30000);
+      check();
+      const base=target.card||{name:target.name,phone:'',address:'',website:'',rating:'',reviews:''};
+      await progress('İşletme kartı okunuyor…',target.name);
+      let details=base;
+      if(!(base.phone&&base.address&&base.website)){
+        await progress('İşletme detayları yükleniyor… (en fazla 2,5 sn)',target.name);
+        details=await extractDetails(target,target.link,single,base);
       }
-      await waitFor(()=>document.querySelector('button[data-item-id="address"],button[data-item-id^="phone:tel:"],a[data-item-id="authority"]')||document.querySelector('[role="main"] h1'),30000);
-      await sleep(1300);check();
-      const address=document.querySelector('button[data-item-id="address"]');
-      const phone=document.querySelector('button[data-item-id^="phone:tel:"]');
-      const website=document.querySelector('a[data-item-id="authority"]');
-      const rating=document.querySelector('[role="main"] [role="img"][aria-label*="yıldız"], [role="main"] [role="img"][aria-label*="stars"]');
-      const review=document.querySelector('button[jsaction*="moreReviews"]');
-      const name=tidy(heading()?.textContent);
-      if(!name)throw new Error('İşletme başlığı okunamadı; yanlış kayıt oluşturmamak için tarama durduruldu.');
-      await send('row',{row:{key:target.key,name,phone:phone?.getAttribute('data-item-id').replace(/^phone:tel:/,'')||'',
-        address:tidy(address?.querySelector('.Io6YTe')?.textContent||address?.textContent),website:website?.href||'',
-        rating:rating?.getAttribute('aria-label')||'',reviews:tidy(review?.textContent),mapsUrl:target.href,collectedAt:new Date().toISOString()}});
-      seen.add(target.key);if(cancelled)return;
-      if(!single&&!feedNow()){
-        const back=document.querySelector('button[aria-label="Geri"],button[aria-label="Back"],button[jsaction*="backToList"]');
-        if(back)back.click();else history.back();
-        await waitFor(feedNow,30000);
-      }
+      check();
+      await send('row',{row:{...details,key:target.key,name:target.name||details.name||'İsimsiz işletme',
+        mapsUrl:target.href,collectedAt:new Date().toISOString()}});
+      seen.add(target.key);
+      if(!cancelled)await progress('İşletme kaydedildi; sıradaki karta geçiliyor…',target.name);
     }
   }
   chrome.storage.onChanged.addListener((changes,area)=>{
